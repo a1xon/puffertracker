@@ -1,0 +1,12 @@
+@font-face {
+  font-family: 'JetBrainsMono';
+  src: url('/assets/JetBrainsMonoNLNerdFont.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+}
+
+body {
+  font-family: 'JetBrainsMono', monospace;
+  background-color: #000;
+  color: #fff;
+}
