@@ -115,7 +115,8 @@ export const useEventStore = defineStore('event', {
              this.isFrozen = updated.is_frozen
              if (updated.last_roast_phrases) this.lastRoastPhrases = updated.last_roast_phrases
         })
-        .subscribe((status) => {
+        .subscribe((status, err) => {
+            console.log('Supabase channel status:', status, err)
             if (status === 'SUBSCRIBED') this.connectionStatus = 'CONNECTED'
             else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') this.connectionStatus = 'DISCONNECTED'
         })
