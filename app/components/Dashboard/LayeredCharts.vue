@@ -1,11 +1,9 @@
 <template>
   <div class="relative w-full h-full bg-black">
-    <!-- Bottom Layer: Line Chart (History) -->
-    <div class="absolute inset-0 z-0 w-full h-full">
+    <div class="absolute inset-0 z-0 w-full h-full pr-2">
       <Line :data="lineData" :options="lineOptions" />
     </div>
 
-    <!-- Top Layer: Bar Chart (Leaderboard) -->
     <div class="absolute top-10 left-10 bottom-10 z-10 w-[35vw] pointer-events-none opacity-95">
       <Bar :data="barData" :options="barOptions" />
     </div>
@@ -77,6 +75,7 @@ const lineData = computed(() => {
         runningTotal += 1
         data.push({ x: log.timestamp, y: runningTotal })
     })
+    // Push 'now' point to extend line to current time
     data.push({ x: now, y: runningTotal })
 
     return {
@@ -84,8 +83,8 @@ const lineData = computed(() => {
       data: data,
       borderColor: getColorForGuest(guest.id),
       backgroundColor: 'transparent',
-      tension: 0, // No curves
-      stepped: true, // Incremental steps
+      tension: 0, 
+      stepped: true, 
       pointRadius: 0,
       borderWidth: 2,
       order: 2
@@ -122,13 +121,12 @@ const lineData = computed(() => {
 const lineOptions = computed(() => {
     const now = Date.now()
     const elapsed = now - store.startTime
-    const oneHour = 60 * 60 * 1000
     
-    let limitDuration = 30 * 60000
-    if (elapsed > 30 * 60000) limitDuration = oneHour
-    if (elapsed > oneHour) limitDuration = 2 * oneHour
-    if (elapsed > 2 * oneHour) limitDuration = 3 * oneHour
-    if (elapsed > 3 * oneHour) limitDuration = Math.ceil(elapsed / oneHour) * oneHour
+    // LOGIC CHANGE:
+    // If we divide elapsed by 0.75, the 'elapsed' point will always happen 
+    // at the 75% mark of the total X axis range.
+    // We use Math.max to enforce a minimum 30 minute scale so it doesn't look empty at the start.
+    const totalDuration = Math.max(30 * 60000, elapsed / 0.75)
     
     return {
       responsive: true,
@@ -136,9 +134,12 @@ const lineOptions = computed(() => {
       scales: {
         x: { 
           type: 'time',
-          time: { unit: 'minute', displayFormats: { minute: 'HH:mm' } },
+          time: { 
+            unit: 'minute', 
+            displayFormats: { minute: 'HH:mm' } 
+          },
           min: store.startTime,
-          max: store.startTime + limitDuration,
+          max: store.startTime + totalDuration, // Dynamic Max
           grid: { color: 'rgba(255,255,255,0.05)', drawBorder: false },
           ticks: { color: '#64748B', font: { family: 'JetBrainsMono' } }
         }, 
@@ -158,7 +159,7 @@ const lineOptions = computed(() => {
         }
       },
       plugins: { legend: { display: false }, tooltip: { enabled: false } },
-      animation: { duration: 0 }
+      animation: { duration: 0 } // Keeps the chart feeling real-time/snappy
     }
 })
 
@@ -169,7 +170,6 @@ const barData = computed(() => {
     labels: sorted.map(g => {
         const weight = g.count * store.unitWeight
         const kcal = g.count * store.unitKcal
-        // Format: Name (Velocity) [Count | Weightg | Kcal]
         return `${g.name} (${g.velocity} pp30m) [${g.count} | ${weight}g | ${kcal}kcal]`
     }),
     datasets: [{
@@ -193,7 +193,7 @@ const barOptions = {
     y: { 
         display: true,
         ticks: { 
-            color: '#F8FAFC', // Slate 50 (Brighter for readability)
+            color: '#F8FAFC', 
             font: { size: 14, family: 'JetBrainsMono', weight: 'bold' },
             padding: 10
         },
