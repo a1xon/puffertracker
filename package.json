@@ -14,13 +14,13 @@
   "private": true,
   "dependencies": {
     "@nuxtjs/supabase": "^2.0.3",
-    "@pinia/nuxt": "^0.11.3",
+    "@pinia/nuxt": "^0.5.1",
     "@vueuse/core": "^14.1.0",
     "@vueuse/nuxt": "^14.1.0",
     "chart.js": "^4.5.1",
     "chartjs-adapter-date-fns": "^3.0.0",
     "date-fns": "^4.1.0",
-    "pinia": "^3.0.4",
+    "pinia": "^2.1.7",
     "vue-chartjs": "^5.3.3"
   },
   "devDependencies": {

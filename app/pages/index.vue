@@ -123,23 +123,45 @@ const moderator = ref({
 
 // Mock AI Update
 useIntervalFn(async () => {
-   try {
-       const response = await $fetch('/api/moderator', {
-           method: 'POST',
-           body: {
-               stats: {
-                   leaderboard: store.leaderboard,
-                   total: store.totalCount
-               }
-           }
-       })
-       
-       if (response) {
-           moderator.value = response
-       }
-   } catch (e) {
-       console.error("AI Moderator Offline", e)
-   }
-}, 10000)
+  const stats = {
+      leaderboard: store.leaderboard,
+      total: store.totalCount
+  };
+  const time = new Date();
+
+  let timePhrase = "Phase: Warm Up";
+  if (time.getHours() > 18) timePhrase = "Phase: Evening Feast";
+  if (time.getHours() > 20) timePhrase = "Phase: Mid-Game Hunger";
+  if (time.getHours() > 22) timePhrase = "Phase: Satiety Critical";
+  if (time.getHours() < 4) timePhrase = "Phase: The Last Supper";
+
+
+  const leaderboard = stats.leaderboard || [];
+  const top = leaderboard[0];
+  const bottom = leaderboard.length > 1 ? leaderboard[leaderboard.length - 1] : null;
+
+  let status = "Event in progress";
+  let target = "Keep eating!";
+
+  if (top) {
+      status = `${top.name} is leading with ${top.count} units (${top.velocity} pp30m)`;
+  }
+
+  if (bottom) {
+      target = `${bottom.name} is lagging behind at ${bottom.velocity} pp30m. Pathetic.`;
+  } else if (top && top.count > 20) {
+      target = `Is ${top.name} even human? What a machine!`;
+  } else if (top && top.count > 10) {
+      target = `${top.name} is an absolute beast. Who can stop them?`;
+  } else if (top && top.count > 5) {
+      target = `${top.name} is on a roll!`;
+  }
+
+  moderator.value = {
+      statusPhrase: status.toUpperCase(),
+      targetPhrase: target,
+      timePhrase: timePhrase
+  };
+}, 5000)
 
 </script>
