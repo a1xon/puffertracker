@@ -12,7 +12,7 @@ export default defineNuxtConfig({
   supabase: {
     redirect: false, // Disable built-in auth redirect as we have public access
     url: "https://rfivppipxghomziylwrf.supabase.co",
-    key: "sb_publishable_D3bTHfXYKUiuRXyI8rgg0w_Yx6zCBLg"
+    key: "D3bTHfXYKUiuRXyI8rgg0w_Yx6zCBLg"
   },
   app: {
     head: {
