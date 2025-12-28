@@ -34,6 +34,7 @@ export const useEventStore = defineStore('event', {
     unitKcal: 220, 
     isFrozen: false,
     lastRoastPhrases: [] as string[],
+    initializing: false,
     initialized: false,
     connectionStatus: 'DISCONNECTED' as 'CONNECTED' | 'DISCONNECTED' | 'CONNECTING'
   }),
@@ -73,55 +74,61 @@ export const useEventStore = defineStore('event', {
 
   actions: {
     async init() {
-      if (this.initialized) return
-      const supabase = useSupabaseClient<Database>()
+      if (this.initialized || this.initializing) return
       
-      const { data: config } = await supabase.from('event_config').select('*').single()
-      if (config) {
-        this.startTime = config.event_start ? new Date(config.event_start).getTime() : Date.now()
-        this.isFrozen = config.is_frozen || false
-        this.lastRoastPhrases = config.last_roast_phrases || []
+      try {
+        this.initializing = true
+        const supabase = useSupabaseClient<Database>()
+        
+        const { data: config } = await supabase.from('event_config').select('*').single()
+        if (config) {
+          this.startTime = config.event_start ? new Date(config.event_start).getTime() : Date.now()
+          this.isFrozen = config.is_frozen || false
+          this.lastRoastPhrases = config.last_roast_phrases || []
+        }
+
+        const { data: participants } = await supabase.from('extended_stats').select('*').order('seat_order', { ascending: true })
+        if (participants) {
+          this.handleFullSync(participants)
+        }
+
+        const { data: logs } = await supabase.from('puffer_logs').select('*').order('eaten_at', { ascending: true })
+        if (logs) {
+          this.logs = logs.map(l => ({
+            id: l.id,
+            timestamp: l.eaten_at ? new Date(l.eaten_at).getTime() : Date.now(),
+            guestId: l.participant_id || ''
+          }))
+          this.logs.forEach(log => {
+            const guest = this.guests.find(g => g.id === log.guestId)
+            if (guest && log.timestamp > guest.lastPufferTime) guest.lastPufferTime = log.timestamp
+          })
+        }
+
+        this.connectionStatus = 'CONNECTING'
+        const channel = supabase.channel('public:any')
+        channel
+          .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'puffer_logs' }, payload => this.handleNewLog(payload.new))
+          .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'puffer_logs' }, payload => this.handleRemoveLog((payload.old as any).id))
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'participants' }, payload => {
+              if (payload.eventType === 'INSERT') this.handleNewParticipant(payload.new)
+              else if (payload.eventType === 'UPDATE') this.handleParticipantUpdate(payload.new)
+          })
+          .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'event_config' }, payload => {
+              const updated = payload.new as any
+              this.isFrozen = updated.is_frozen
+              if (updated.last_roast_phrases) this.lastRoastPhrases = updated.last_roast_phrases
+          })
+          .subscribe((status, err) => {
+              console.log('Supabase channel status:', status, err)
+              if (status === 'SUBSCRIBED') this.connectionStatus = 'CONNECTED'
+              else if (status === 'CLOSED' || status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') this.connectionStatus = 'DISCONNECTED'
+          })
+
+        this.initialized = true
+      } finally {
+        this.initializing = false
       }
-
-      const { data: participants } = await supabase.from('extended_stats').select('*').order('seat_order', { ascending: true })
-      if (participants) {
-        this.handleFullSync(participants)
-      }
-
-      const { data: logs } = await supabase.from('puffer_logs').select('*').order('eaten_at', { ascending: true })
-      if (logs) {
-        this.logs = logs.map(l => ({
-          id: l.id,
-          timestamp: l.eaten_at ? new Date(l.eaten_at).getTime() : Date.now(),
-          guestId: l.participant_id || ''
-        }))
-        this.logs.forEach(log => {
-          const guest = this.guests.find(g => g.id === log.guestId)
-          if (guest && log.timestamp > guest.lastPufferTime) guest.lastPufferTime = log.timestamp
-        })
-      }
-
-      this.connectionStatus = 'CONNECTING'
-      const channel = supabase.channel('public:any')
-      channel
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'puffer_logs' }, payload => this.handleNewLog(payload.new))
-        .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'puffer_logs' }, payload => this.handleRemoveLog((payload.old as any).id))
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'participants' }, payload => {
-             if (payload.eventType === 'INSERT') this.handleNewParticipant(payload.new)
-             else if (payload.eventType === 'UPDATE') this.handleParticipantUpdate(payload.new)
-        })
-        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'event_config' }, payload => {
-             const updated = payload.new as any
-             this.isFrozen = updated.is_frozen
-             if (updated.last_roast_phrases) this.lastRoastPhrases = updated.last_roast_phrases
-        })
-        .subscribe((status, err) => {
-            console.log('Supabase channel status:', status, err)
-            if (status === 'SUBSCRIBED') this.connectionStatus = 'CONNECTED'
-            else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') this.connectionStatus = 'DISCONNECTED'
-        })
-
-      this.initialized = true
     },
 
     handleFullSync(participants: any[]) {
